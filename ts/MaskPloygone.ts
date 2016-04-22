@@ -1,13 +1,13 @@
 class MaskPloygone {
 
     ctx:CanvasRenderingContext2D;
-    x:Number;
-    y:Number;
-    w:Number;
-    h:Number;
+    x:number;
+    y:number;
+    w:number;
+    h:number;
     img:any = new Image();
 
-    constructor( ctx:CanvasRenderingContext2D, x:Number, y:Number, w:Number, h:Number, imgPath:string ) {
+    constructor( ctx:CanvasRenderingContext2D, x:number, y:number, w:number, h:number, imgPath:string ) {
         this.ctx = ctx;
         this.x = x;
         this.y = y;
@@ -16,13 +16,7 @@ class MaskPloygone {
         this.img.src = imgPath;
     }
 
-    drawImageProp(img, x, y, w, h, offsetX, offsetY) {
-
-        if (arguments.length === 2) {
-            x = y = 0;
-            w = this.ctx.canvas.width;
-            h = this.ctx.canvas.height;
-        }
+    drawImageProp(x, y, offsetX, offsetY) {
 
         // default offset is center
         offsetX = typeof offsetX === "number" ? offsetX : 0.5;
@@ -34,22 +28,22 @@ class MaskPloygone {
         if (offsetX > 1) offsetX = 1;
         if (offsetY > 1) offsetY = 1;
 
-        var iw = img.width,
-            ih = img.height,
-            r = Math.min(w / iw, h / ih),
+        var iw = this.img.width,
+            ih = this.img.height,
+            r = Math.min(this.w / iw, this.h / ih),
             nw = iw * r,   // new prop. width
             nh = ih * r,   // new prop. height
             cx, cy, cw, ch, ar = 1;
 
         // decide which gap to fill
-        if (nw < w) ar = w / nw;
-        if (Math.abs(ar - 1) < 1e-14 && nh < h) ar = h / nh;  // updated
+        if (nw < this.w) ar = this.w / nw;
+        if (Math.abs(ar - 1) < 1e-14 && nh < this.h) ar = this.h / nh;  // updated
         nw *= ar;
         nh *= ar;
 
         // calc source rectangle
-        cw = iw / (nw / w);
-        ch = ih / (nh / h);
+        cw = iw / (nw / this.w);
+        ch = ih / (nh / this.h);
 
         cx = (iw - cw) * offsetX;
         cy = (ih - ch) * offsetY;
@@ -61,7 +55,24 @@ class MaskPloygone {
         if (ch > ih) ch = ih;
 
         // fill image in dest. rectangle
-        this.ctx.drawImage(img, cx, cy, cw, ch,  x, y, w, h);
+        this.ctx.drawImage(this.img, cx, cy, cw, ch,  this.x, this.y, this.w, this.h);
+    }
+
+    draw() {
+
+        this.ctx.save();
+        //this.ctx.fillRect( this.x, this.y, this.w, this.h );
+        this.ctx.beginPath();
+        this.ctx.moveTo(this.x, this.y);
+        this.ctx.lineTo(this.w, this.y);
+        this.ctx.lineTo(this.w, this.h);
+        this.ctx.lineTo(this.x, this.h);
+
+        this.ctx.closePath();
+        this.ctx.clip();
+        this.drawImageProp(this.x, this.y, 0, 0);
+        this.ctx.restore();
+
     }
 
 }

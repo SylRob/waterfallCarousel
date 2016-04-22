@@ -1,5 +1,6 @@
 var WaterfallCarousel = (function () {
     function WaterfallCarousel(wrapperId, imagesArr) {
+        this.itemWrapperElems = [];
         this.windowW = window.outerWidth;
         this.windowH = window.outerHeight;
         this.wrapperElem = document.getElementById(wrapperId);
@@ -9,28 +10,39 @@ var WaterfallCarousel = (function () {
             throw new Error('need image tag list');
         this.imagesArr = imagesArr;
         this.initCanvas();
-        this.positioningImages();
+        this.initShapes();
         this.initEvents();
         var loadingElem = this.wrapperElem.querySelector('.loading');
         if (loadingElem)
             this.wrapperElem.removeChild(loadingElem);
     }
     WaterfallCarousel.prototype.initEvents = function () {
-        var _this = this;
-        window.addEventListener('resize', function () {
-            _this.windowW = window.outerWidth;
-            _this.windowH = window.outerHeight;
-        });
+        window.addEventListener('resize', this.resizeHandeler.bind(this));
     };
     WaterfallCarousel.prototype.initCanvas = function () {
         this.canvasElem = document.createElement('canvas');
         this.canvasElem.style.width = this.canvasElem.style.height = '100%';
+        this.canvasElem.width = this.wrapperElem.offsetWidth;
+        this.canvasElem.height = this.wrapperElem.offsetHeight;
         this.wrapperElem.appendChild(this.canvasElem);
         this.ctx = this.canvasElem.getContext('2d');
     };
-    WaterfallCarousel.prototype.positioningImages = function () {
+    WaterfallCarousel.prototype.initShapes = function () {
+        for (var i = 0; i < this.imagesArr.length; i++) {
+            var shape = new MaskPloygone(this.ctx, 0, 0, this.windowW, this.windowH, this.imagesArr[i]);
+            this.itemWrapperElems.push(shape);
+            shape.draw();
+        }
+    };
+    WaterfallCarousel.prototype.positioningShapes = function () {
         for (var i = 0; i < this.imagesArr.length; i++) {
         }
+    };
+    WaterfallCarousel.prototype.resizeHandeler = function () {
+        this.windowW = window.outerWidth;
+        this.windowH = window.outerHeight;
+        this.canvasElem.width = this.wrapperElem.offsetWidth;
+        this.canvasElem.height = this.wrapperElem.offsetHeight;
     };
     return WaterfallCarousel;
 }());
