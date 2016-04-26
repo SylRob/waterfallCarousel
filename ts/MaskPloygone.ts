@@ -1,22 +1,34 @@
 class MaskPloygone {
 
     ctx:CanvasRenderingContext2D;
-    x:number;
-    y:number;
-    w:number;
-    h:number;
-    img:any = new Image();
+    img: any = new Image();
+    id: number;
+    w: number;
+    h: number;
+    shapePoints: Array<any>;
+    visible: boolean;
 
-    constructor( ctx:CanvasRenderingContext2D, x:number, y:number, w:number, h:number, imgPath:string ) {
+    constructor( ctx:CanvasRenderingContext2D, id:number, imgPath: string, visible: boolean ) {
         this.ctx = ctx;
-        this.x = x;
-        this.y = y;
-        this.w = w;
-        this.h = h;
+        this.id = id;
         this.img.src = imgPath;
+        this.visible = visible;
     }
 
-    drawImageProp(x, y, offsetX, offsetY) {
+    setMaskSize( w: number, h: number ) {
+        this.w = w;
+        this.h = h;
+    }
+
+    setBezierPoints( xAxis: number, yDistance:number ) {
+
+        if( yDistance < 1 && yDistance > -1 ) {
+
+        }
+
+    }
+
+    drawImageProp(x, y, x2, y2, offsetX, offsetY) {
 
         // default offset is center
         offsetX = typeof offsetX === "number" ? offsetX : 0.5;
@@ -30,20 +42,20 @@ class MaskPloygone {
 
         var iw = this.img.width,
             ih = this.img.height,
-            r = Math.min(this.w / iw, this.h / ih),
+            r = Math.min(x2 / iw, y2 / ih),
             nw = iw * r,   // new prop. width
             nh = ih * r,   // new prop. height
             cx, cy, cw, ch, ar = 1;
 
         // decide which gap to fill
-        if (nw < this.w) ar = this.w / nw;
-        if (Math.abs(ar - 1) < 1e-14 && nh < this.h) ar = this.h / nh;  // updated
+        if (nw < x2) ar = x2 / nw;
+        if (Math.abs(ar - 1) < 1e-14 && nh < y2) ar = y2 / nh;  // updated
         nw *= ar;
         nh *= ar;
 
         // calc source rectangle
-        cw = iw / (nw / this.w);
-        ch = ih / (nh / this.h);
+        cw = iw / (nw / x2);
+        ch = ih / (nh / y2);
 
         cx = (iw - cw) * offsetX;
         cy = (ih - ch) * offsetY;
@@ -55,22 +67,35 @@ class MaskPloygone {
         if (ch > ih) ch = ih;
 
         // fill image in dest. rectangle
-        this.ctx.drawImage(this.img, cx, cy, cw, ch,  this.x, this.y, this.w, this.h);
+        this.ctx.drawImage(this.img, cx, cy, cw, ch,  x, y, x2, y2);
     }
 
-    draw() {
+    draw( points:Array<any> ) {
+
+        points = points || this.shapePoints;
 
         this.ctx.save();
         //this.ctx.fillRect( this.x, this.y, this.w, this.h );
         this.ctx.beginPath();
-        this.ctx.moveTo(this.x, this.y);
-        this.ctx.lineTo(this.w, this.y);
-        this.ctx.lineTo(this.w, this.h);
-        this.ctx.lineTo(this.x, this.h);
+
+        this.shapePoints = points;
+
+        for( var i = 0; i < points.length; i++ ) {
+            if( i == 0 ) this.ctx.moveTo( points[i].x, points[i].y )
+            if( points[i].type == 'line' ) {
+                this.ctx.lineTo( points[i].x, points[i].y );
+            } else if ( points[i].type == 'bezier' ) {
+                this.ctx.moveTo( points[i].x, points[i].y );
+                this.ctx.bezierCurveTo(
+                    points[i].cp1x, points[i].cp1y,
+                    points[i].cp2x, points[i].cp2y,
+                    points[i].x2, points[i].y2 );
+            }
+        }
 
         this.ctx.closePath();
         this.ctx.clip();
-        this.drawImageProp(this.x, this.y, 0, 0);
+        this.drawImageProp(points[0].x, points[0].y, this.w, this.h, 0, 0);
         this.ctx.restore();
 
     }

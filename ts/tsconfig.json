@@ -34,6 +34,7 @@
     "files": [
         "lib/es6-promise.d.ts",
         "main.ts",
-        "MaskPloygone.ts"
+        "MaskPloygone.ts",
+        "TouchVector.ts"
     ]
 }

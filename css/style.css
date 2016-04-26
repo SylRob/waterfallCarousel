@@ -7,6 +7,9 @@
 *
 */
 
+body {
+    overflow: hidden;
+}
 
 #mainWrapper {
     width: 100%;
