@@ -51,6 +51,7 @@ var MaskPloygone = (function () {
         this.ctx.save();
         this.ctx.beginPath();
         this.shapePoints = points;
+        var changeColor = false;
         for (var i = 0; i < points.length; i++) {
             if (i == 0)
                 this.ctx.moveTo(points[i].x, points[i].y);
@@ -58,8 +59,9 @@ var MaskPloygone = (function () {
                 this.ctx.lineTo(points[i].x, points[i].y);
             }
             else if (points[i].type == 'bezier') {
-                this.ctx.moveTo(points[i].x, points[i].y);
+                this.ctx.lineTo(points[i].x, points[i].y);
                 this.ctx.bezierCurveTo(points[i].cp1x, points[i].cp1y, points[i].cp2x, points[i].cp2y, points[i].x2, points[i].y2);
+                changeColor = true;
             }
         }
         this.ctx.closePath();

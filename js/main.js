@@ -4,6 +4,10 @@ var WaterfallCarousel = (function () {
         this.windowW = window.outerWidth;
         this.windowH = window.outerHeight;
         this.dirty = true;
+        this.isAnimated = false;
+        this.animationTimeBase = 200;
+        this.animationTimeStart = 0;
+        this.resetMaskPositionNeeded = false;
         this.wrapperElem = document.getElementById(wrapperId);
         if (!this.wrapperElem)
             throw new Error('main element cannot be found');
@@ -11,21 +15,23 @@ var WaterfallCarousel = (function () {
             throw new Error('need image tag list');
         this.imagesArr = imagesArr;
         this.initCanvas();
-        this.initShapes();
+        this.initMask();
         this.initEvents();
         var loadingElem = this.wrapperElem.querySelector('.loading');
         if (loadingElem)
             this.wrapperElem.removeChild(loadingElem);
-        this.draw();
+        this.oldTime = new Date().getTime();
+        this.draw(0);
     }
     WaterfallCarousel.prototype.initEvents = function () {
         var _this = this;
         window.addEventListener('resize', this.resizeHandeler.bind(this));
         new TouchVector({ listener: this.wrapperElem });
         document.addEventListener('touchVector-move', function (event) {
-            if (_this.userAction) {
+            if (_this.userAction && !_this.isAnimated) {
                 _this.dirty = true;
                 _this.touchPosition = event.detail;
+                _this.shapePoints = _this.getShapePoints(_this.startPosition.x, _this.startPosition.y, _this.touchPosition.x, _this.touchPosition.y);
             }
         });
         this.canvasElem.addEventListener('mousedown', this.onTouchStart.bind(this), false);
@@ -41,31 +47,31 @@ var WaterfallCarousel = (function () {
         this.wrapperElem.appendChild(this.canvasElem);
         this.ctx = this.canvasElem.getContext('2d');
     };
-    WaterfallCarousel.prototype.initShapes = function () {
+    WaterfallCarousel.prototype.initMask = function () {
         this.visibleItems = [null, 0, 1];
         for (var i = 0; i < this.imagesArr.length; i++) {
             var shape = new MaskPloygone(this.ctx, i, this.imagesArr[i], i == 0 ? true : false);
             this.itemWrapperMasks.push(shape);
             if (i == 0) {
                 shape.setMaskSize(this.canvasElem.width, this.canvasElem.height);
-                var points = [
+                this.shapePoints = [
                     { type: 'line', x: 0, y: 0 },
-                    { type: 'line', x: this.windowW, y: 0 },
-                    { type: 'line', x: this.windowW, y: this.windowH },
-                    { type: 'line', x: 0, y: this.windowH }
+                    { type: 'line', x: this.canvasElem.width, y: 0 },
+                    { type: 'line', x: this.canvasElem.width, y: this.canvasElem.height },
+                    { type: 'line', x: 0, y: this.canvasElem.height }
                 ];
-                shape.draw(points);
+                shape.draw(this.shapePoints);
             }
         }
     };
-    WaterfallCarousel.prototype.positioningShapes = function () {
-        if (typeof this.touchPosition !== 'undefined') {
+    WaterfallCarousel.prototype.positioningMask = function () {
+        if (typeof this.touchPosition !== 'undefined' && !this.isAnimated) {
             for (var i = 0; i < this.itemWrapperMasks.length; i++) {
                 var shape = this.itemWrapperMasks[i];
                 if (!shape.visible || !this.userAction)
                     continue;
-                var points = this.getShapePoints(this.startPosition.x, this.startPosition.y, this.touchPosition.x, this.touchPosition.y);
-                shape.draw(points);
+                this.ctx.clearRect(0, 0, this.canvasElem.width, this.canvasElem.height);
+                shape.draw(this.shapePoints);
             }
         }
     };
@@ -73,30 +79,75 @@ var WaterfallCarousel = (function () {
         var xDiff = xStart - x;
         var yDiff = yStart - y;
         var bezierMaxW = Math.round((this.canvasElem.width * 70) / 100);
-        var bezierMaxH = Math.round((this.canvasElem.height * 80) / 100);
+        var bezierMaxH = Math.round((this.canvasElem.height * 70) / 100);
         var pour = (Math.abs(yDiff) / bezierMaxH) * 100;
-        console.log(pour);
-        var points = [
-            { type: 'line', x: 0, y: 0 },
-            { type: 'line', x: 0, y: 0 }
-        ];
-        return [
-            { type: 'line', x: 0, y: 0 },
-            { type: 'line', x: this.windowW, y: 0 },
-            { type: 'line', x: this.windowW, y: this.windowH },
-            { type: 'line', x: 0, y: this.windowH }
-        ];
+        y = y > bezierMaxH ? bezierMaxH : y;
+        pour = pour > 100 ? 100 : pour;
+        var bezierW = Math.round(((pour * bezierMaxW) / 100));
+        var bezierFpX = (x - bezierW / 2) < 0 ? 0 : (x - bezierW / 2);
+        var bezierSpX = (bezierFpX + bezierW) > this.canvasElem.width ? this.canvasElem.width : (bezierFpX + bezierW);
+        var bezierY = Math.round(((pour * Math.abs(bezierMaxH)) / 100));
+        var points = [];
+        if (yDiff < 0) {
+            points = [
+                { type: 'line', x: 0, y: 0 },
+                { type: 'bezier', x: bezierFpX, y: 0, cp1x: x, cp1y: bezierY, cp2x: x, cp2y: bezierY, x2: bezierSpX, y2: 0 },
+                { type: 'line', x: this.canvasElem.width, y: 0 },
+                { type: 'line', x: this.canvasElem.width, y: this.canvasElem.height },
+                { type: 'line', x: 0, y: this.canvasElem.height }
+            ];
+        }
+        else {
+            points = [
+                { type: 'line', x: 0, y: 0 },
+                { type: 'line', x: this.canvasElem.width, y: 0 },
+                { type: 'line', x: this.canvasElem.width, y: this.canvasElem.height },
+                { type: 'bezier', x: bezierSpX, y: this.canvasElem.height, cp1x: x, cp1y: (this.canvasElem.height - bezierY), cp2x: x, cp2y: (this.canvasElem.height - bezierY), x2: bezierFpX, y2: this.canvasElem.height },
+                { type: 'line', x: 0, y: this.canvasElem.height }
+            ];
+        }
+        return points;
     };
     WaterfallCarousel.prototype.onTouchStart = function (event) {
-        this.userAction = true;
-        this.startPosition = new BasicVector({
-            x: event.clientX,
-            y: event.clientY
-        });
+        if (!this.isAnimated) {
+            this.userAction = true;
+            if (typeof event.clientX !== 'undefined') {
+                var x = event.clientX;
+                var y = event.clientY;
+            }
+            else if (typeof event.touches !== 'undefined') {
+                var x = event.touches[0].clientX;
+                var y = event.touches[0].clientY;
+            }
+            this.startPosition = new BasicVector({
+                x: x,
+                y: y
+            });
+        }
     };
     WaterfallCarousel.prototype.onTouchEnd = function (event) {
         this.userAction = false;
         this.dirty = false;
+        this.resetMaskPositionNeeded = true;
+    };
+    WaterfallCarousel.prototype.resetMaskPosition = function (newTime) {
+        this.isAnimated = true;
+        this.dirty = true;
+        var currentIteration = 0, totalIteration = 10, xDiff = this.startPosition.x - this.touchPosition.x, yDiff = this.startPosition.y - this.touchPosition.y;
+        var bezierMaxW = Math.round((this.canvasElem.width * 70) / 100);
+        var bezierMaxH = Math.round((this.canvasElem.height * 70) / 100);
+        var pour = (Math.abs(yDiff) / bezierMaxH) * 100;
+        var y = this.touchPosition.y > bezierMaxH ? bezierMaxH : this.touchPosition.y;
+        pour = pour > 100 ? 100 : pour;
+        var bezierW = Math.round(((pour * bezierMaxW) / 100));
+        var bezierFpX = (this.touchPosition.x - bezierW / 2) < 0 ? 0 : (this.touchPosition.x - bezierW / 2);
+        var bezierSpX = (bezierFpX + bezierW) > this.canvasElem.width ? this.canvasElem.width : (bezierFpX + bezierW);
+        var bezierY = Math.round(((pour * Math.abs(bezierMaxH)) / 100));
+        for (var i = 0; i < this.shapePoints.length; i++) {
+            if (this.shapePoints[i].type == 'bezier') {
+                var bazier = this.shapePoints[i];
+            }
+        }
     };
     WaterfallCarousel.prototype.resizeHandeler = function () {
         this.windowW = window.outerWidth;
@@ -104,9 +155,9 @@ var WaterfallCarousel = (function () {
         this.canvasElem.width = this.wrapperElem.offsetWidth;
         this.canvasElem.height = this.wrapperElem.offsetHeight;
         this.dirty = true;
-        this.resizeActiveShape();
+        this.resizeActiveMask();
     };
-    WaterfallCarousel.prototype.resizeActiveShape = function () {
+    WaterfallCarousel.prototype.resizeActiveMask = function () {
         for (var i = 0; i < this.itemWrapperMasks.length; i++) {
             var shape = this.itemWrapperMasks[i];
             if (!shape.visible)
@@ -121,10 +172,18 @@ var WaterfallCarousel = (function () {
             shape.draw(points);
         }
     };
-    WaterfallCarousel.prototype.draw = function () {
+    WaterfallCarousel.prototype.draw = function (argumentt) {
         requestAnimationFrame(this.draw.bind(this));
+        var newTime = new Date().getTime();
+        this.oldTime = this.oldTime - newTime;
+        console.log(argumentt);
+        if (this.resetMaskPositionNeeded) {
+            if (this.animationTimeStart != 0)
+                this.animationTimeStart = newTime;
+            this.resetMaskPosition(newTime);
+        }
         if (this.dirty) {
-            this.positioningShapes();
+            this.positioningMask();
         }
     };
     return WaterfallCarousel;
