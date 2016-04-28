@@ -1,23 +1,24 @@
 class WaterfallCarousel {
 
-    wrapperElem: HTMLElement;
-    canvasElem: HTMLCanvasElement;
-    ctx: CanvasRenderingContext2D;
-    itemWrapperMasks: Array<MaskPloygone> = [];
-    imagesArr: Array<string>;
-    windowW: number = window.outerWidth;
-    windowH: number = window.outerHeight;
-    dirty: boolean = true;
-    userAction: boolean;
-    isAnimated:boolean = false;
-    animationTimeBase: number = 200;
-    animationTimeStart: number = 0;
-    resetMaskPositionNeeded: boolean = false;
-    oldTime: number;
-    touchPosition: TouchVector;
-    startPosition: BasicVector;
-    shapePoints: Array<any>;
-    visibleItems: Array<number>;
+    private wrapperElem: HTMLElement;
+    private canvasElem: HTMLCanvasElement;
+    private ctx: CanvasRenderingContext2D;
+    private itemWrapperMasks: Array<MaskPloygone> = [];
+    private imagesArr: Array<string>;
+    private windowW: number = window.outerWidth;
+    private windowH: number = window.outerHeight;
+    private dirty: boolean = true;
+    private userAction: boolean;
+    private isAnimated:boolean = false;
+    private animationTimeBase: number = 200;
+    private resetMaskPositionNeeded: boolean = false;
+    private startAnimationTime: number = 0;
+    private touchPosition: TouchVector;
+    private startPosition: BasicVector;
+    private shapePoints: Array<any>;
+    private visibleItems: Array<number>;
+
+    private currentIteration: number = 0;
 
     constructor( wrapperId: string, imagesArr: Array<string>) {
 
@@ -37,7 +38,6 @@ class WaterfallCarousel {
         if( loadingElem ) this.wrapperElem.removeChild(loadingElem);
 
         // start the loop
-        this.oldTime = new Date().getTime();
         this.draw(0);
     }
 
@@ -46,13 +46,7 @@ class WaterfallCarousel {
         window.addEventListener('resize', this.resizeHandeler.bind(this));
         new TouchVector({listener: this.wrapperElem});
 
-        document.addEventListener('touchVector-move', (event:any) => {
-            if( this.userAction && !this.isAnimated ){
-                this.dirty = true;
-                this.touchPosition = event.detail;
-                this.shapePoints = this.getShapePoints( this.startPosition.x, this.startPosition.y , this.touchPosition.x, this.touchPosition.y );
-            }
-        });
+        document.addEventListener('touchVector-move', this.onTouchMove.bind(this), false);
 
         this.canvasElem.addEventListener('mousedown', this.onTouchStart.bind(this), false);
         this.canvasElem.addEventListener('touchstart', this.onTouchStart.bind(this), false);
@@ -101,14 +95,12 @@ class WaterfallCarousel {
 
     private positioningMask(): void {
 
-        if( typeof this.touchPosition !== 'undefined' && !this.isAnimated ) {
+        for( var i = 0; i < this.itemWrapperMasks.length; i++ ) {
+            var shape = this.itemWrapperMasks[i];
+            if( !shape.visible ) continue;
+            this.ctx.clearRect( 0, 0, this.canvasElem.width, this.canvasElem.height );
 
-            for( var i = 0; i < this.itemWrapperMasks.length; i++ ) {
-                var shape = this.itemWrapperMasks[i];
-                if( !shape.visible || !this.userAction ) continue;
-                this.ctx.clearRect( 0, 0, this.canvasElem.width, this.canvasElem.height );
-                shape.draw( this.shapePoints );
-            }
+            shape.draw( this.shapePoints );
         }
 
     }
@@ -146,7 +138,6 @@ class WaterfallCarousel {
 
         } else {
             //top to bottom
-
             points = [
                 { type: 'line', x: 0, y: 0 },
                 { type: 'line', x: this.canvasElem.width, y: 0 },
@@ -179,6 +170,14 @@ class WaterfallCarousel {
         }
     }
 
+    private onTouchMove( event: any ): void {
+        if( this.userAction && !this.isAnimated ){
+            this.dirty = true;
+            this.touchPosition = event.detail;
+            this.shapePoints = this.getShapePoints( this.startPosition.x, this.startPosition.y , this.touchPosition.x, this.touchPosition.y );
+        }
+    }
+
     private onTouchEnd( event: MouseEvent ): void {
         this.userAction = false;
         this.dirty = false;
@@ -192,32 +191,32 @@ class WaterfallCarousel {
         this.dirty = true;
 
         //var dist =
-        var currentIteration = 0,
-        totalIteration = 10,
-        xDiff = this.startPosition.x - this.touchPosition.x,
-        yDiff = this.startPosition.y - this.touchPosition.y;
-
-        var bezierMaxW = Math.round( (this.canvasElem.width * 70) / 100 );
-        var bezierMaxH = Math.round( (this.canvasElem.height * 70) / 100 );
-
-
-
-        var pour = ( Math.abs(yDiff) / bezierMaxH) * 100;
-
-        var y = this.touchPosition.y > bezierMaxH ? bezierMaxH : this.touchPosition.y;//limit to max height
-        pour = pour > 100 ? 100 : pour;//limit to 100%
-        var bezierW = Math.round( ((pour * bezierMaxW) /100) );
-        var bezierFpX = (this.touchPosition.x - bezierW/2) < 0 ? 0 : (this.touchPosition.x - bezierW/2);
-        var bezierSpX = (bezierFpX + bezierW) > this.canvasElem.width ? this.canvasElem.width : (bezierFpX + bezierW);
-        var bezierY = Math.round( ((pour * Math.abs(bezierMaxH)) /100) );
-
+        var timeDiff = Math.round( newTime - this.startAnimationTime ),
+        totalIteration = (this.animationTimeBase/1000) * 60,//60 FPS base
+        pour = this.currentIteration / totalIteration,
+        bezierMaxH = Math.round( (this.canvasElem.height * 70) / 100 ),
+        distY = Math.abs(this.touchPosition.y - this.startPosition.y) > bezierMaxH ? bezierMaxH : Math.abs(this.touchPosition.y - this.startPosition.y);
 
         for( var i = 0; i < this.shapePoints.length; i++ ) {
             //lets find the bezier curve and update it
 
             if( this.shapePoints[i].type == 'bezier' ) {
-                var bazier = this.shapePoints[i];
+
+                this.shapePoints[i].x = this.shapePoints[i].x + pour*(this.touchPosition.x - this.shapePoints[i].x);
+                this.shapePoints[i].x2 = this.shapePoints[i].x2 - pour*(this.shapePoints[i].x2 - this.touchPosition.x);
+                this.shapePoints[i].cp1y = this.shapePoints[i].y == this.canvasElem.height ? (pour*distY) + this.shapePoints[i].cp1y : this.shapePoints[i].cp1y - pour*distY;
+                this.shapePoints[i].cp2y = this.shapePoints[i].y == this.canvasElem.height ? pour*distY + this.shapePoints[i].cp2y : this.shapePoints[i].cp2y - pour*distY;
             }
+        }
+
+        this.currentIteration += 1;
+
+
+        if( pour >= 1 ) {
+            this.currentIteration = 0;
+            this.isAnimated = false;
+            this.dirty = false;
+            this.resetMaskPositionNeeded = false;
         }
 
     }
@@ -250,22 +249,23 @@ class WaterfallCarousel {
         }
     }
 
-    private draw( argumentt ): void {
-        requestAnimationFrame(this.draw.bind(this));
-        var newTime = new Date().getTime();
-        this.oldTime = this.oldTime - newTime;
-
-        console.log( argumentt );
+    private draw( timeStamp ): void {
 
         if( this.resetMaskPositionNeeded ) {
-            if( this.animationTimeStart != 0 ) this.animationTimeStart = newTime;
-            this.resetMaskPosition( newTime );
+            if( this.startAnimationTime == 0 ) this.startAnimationTime = timeStamp;
+            this.resetMaskPosition( timeStamp );
         }
 
         if(this.dirty) {
             this.positioningMask();
         }
 
+        this.dirty = false;
+        requestAnimationFrame(this.draw.bind(this));
+    }
+
+    private easeOutCubic(currentIteration, startValue, changeInValue, totalIterations) {
+        return changeInValue * (Math.pow(currentIteration / totalIterations - 1, 3) + 1) + startValue;
     }
 
 }
