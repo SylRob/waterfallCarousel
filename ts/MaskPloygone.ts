@@ -147,6 +147,7 @@ class MaskPloygone {
         this.ctx.clip();
         var imgPoints = this.getImagePropPoints(points[0].x, points[0].y, this.w, this.h, 0, 0);
         this.ctx.drawImage(this.img, imgPoints.cx, imgPoints.cy, imgPoints.cw, imgPoints.ch,  imgPoints.x, imgPoints.y, imgPoints.x2, imgPoints.y2);
+        //console.log( imgPoints );
         this.transformImageProcess( imgPoints );
         this.ctx.restore();
 
@@ -165,7 +166,8 @@ class MaskPloygone {
                     //var startPoint = this.bezierPoints( { x: points.x, y: points.y}, {x: points.cp1x, y: points.cp1y}, {x: points.cp2x, y: points.cp2y}, {x: points.x2, y: points.y2}, pour );
                     var startPoint =  this.bezierPointsV2( points.x, points.y, points.cp1x, points.cp1y, points.cp2x, points.cp2y, points.x2, points.y2, pour );
 
-                    this.ctx.drawImage(this.img, startPoint.x, 0, 1, imgPoints.y2, startPoint.x, startPoint.y, 1, imgPoints.y2  - startPoint.y);
+                    this.ctx.drawImage(this.img, startPoint.x, imgPoints.cy, 4, imgPoints.ch, startPoint.x, startPoint.y, 8, Math.abs(imgPoints.y2-startPoint.y));
+                    //console.log( startPoint.x, 0, 2, imgPoints.ch, startPoint.x, startPoint.y, 2, Math.abs(imgPoints.y2-startPoint.y) );
                 }
 
             }

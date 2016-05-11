@@ -118,7 +118,7 @@ var MaskPloygone = (function () {
                 for (var j = 0; j < bezierDist; j++) {
                     var pour = j / bezierDist;
                     var startPoint = this.bezierPointsV2(points.x, points.y, points.cp1x, points.cp1y, points.cp2x, points.cp2y, points.x2, points.y2, pour);
-                    this.ctx.drawImage(this.img, startPoint.x, 0, 1, imgPoints.y2, startPoint.x, startPoint.y, 1, imgPoints.y2 - startPoint.y);
+                    this.ctx.drawImage(this.img, startPoint.x, imgPoints.cy, 4, imgPoints.ch, startPoint.x, startPoint.y, 8, Math.abs(imgPoints.y2 - startPoint.y));
                 }
             }
         }
