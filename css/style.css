@@ -12,9 +12,9 @@ body {
 }
 
 #mainWrapper {
-    width: 100%;
-    height: 100vh;
-    background-color: red;
+    width: 1400px;
+    height: 789px;
+    background-color: blue;
     position: relative;
 }
 

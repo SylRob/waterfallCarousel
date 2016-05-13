@@ -58,12 +58,22 @@ var WaterfallCarousel = (function () {
         }
     };
     WaterfallCarousel.prototype.positioningMask = function () {
-        for (var i = 0; i < this.itemWrapperMasks.length; i++) {
+        this.ctx.clearRect(0, 0, this.canvasElem.width, this.canvasElem.height);
+        for (var i = this.itemWrapperMasks.length - 1; i > -1; i--) {
             var shape = this.itemWrapperMasks[i];
-            if (!shape.visible)
-                continue;
-            this.ctx.clearRect(0, 0, this.canvasElem.width, this.canvasElem.height);
-            shape.draw(this.shapePoints);
+            if (this.itemWrapperMasks[i - 1] && this.itemWrapperMasks[i - 1].visible) {
+                shape.setMaskSize(this.canvasElem.width, this.canvasElem.height);
+                var points = [
+                    { type: 'line', x: 0, y: 0 },
+                    { type: 'line', x: this.canvasElem.width, y: 0 },
+                    { type: 'line', x: this.canvasElem.width, y: this.canvasElem.height },
+                    { type: 'line', x: 0, y: this.canvasElem.height }
+                ];
+                shape.draw(points);
+            }
+            else if (shape.visible) {
+                shape.draw(this.shapePoints);
+            }
         }
     };
     WaterfallCarousel.prototype.getShapePoints = function (xStart, yStart, x, y) {
@@ -74,6 +84,8 @@ var WaterfallCarousel = (function () {
         var pour = (Math.abs(yDiff) / bezierMaxH) * 100;
         y = y > bezierMaxH ? bezierMaxH : y;
         pour = pour > 100 ? 100 : pour;
+        if (pour == 100)
+            this.goToNext = true;
         var bezierW = Math.round(((pour * bezierMaxW) / 100));
         var bezierFpX = (x - bezierW / 2) < 0 ? 0 : (x - bezierW / 2);
         var bezierSpX = (bezierFpX + bezierW) > this.canvasElem.width ? this.canvasElem.width : (bezierFpX + bezierW);
@@ -117,7 +129,8 @@ var WaterfallCarousel = (function () {
         }
     };
     WaterfallCarousel.prototype.onTouchMove = function (event) {
-        if (this.userAction && !this.isAnimated) {
+        if (this.userAction && !this.isAnimated && !this.goToNext) {
+            console.log('mouveeeeeeee', this.goToNext);
             this.dirty = true;
             this.touchPosition = event.detail;
             this.shapePoints = this.getShapePoints(this.startPosition.x, this.startPosition.y, this.touchPosition.x, this.touchPosition.y);
@@ -126,7 +139,25 @@ var WaterfallCarousel = (function () {
     WaterfallCarousel.prototype.onTouchEnd = function (event) {
         this.userAction = false;
         this.dirty = false;
-        this.resetMaskPositionNeeded = true;
+        if (!this.goToNext)
+            this.resetMaskPositionNeeded = true;
+    };
+    WaterfallCarousel.prototype.setNextTransition = function (newTime) {
+        this.isAnimated = true;
+        this.dirty = true;
+        var timeDiff = Math.round(newTime - this.startAnimationTime), totalIteration = (this.animationTimeBase / 2000) * 60, pour = this.currentIteration / totalIteration;
+        for (var i = 0; i < this.shapePoints.length; i++) {
+            if (this.shapePoints[i].y != this.canvasElem.height) {
+                this.shapePoints[i].y = this.shapePoints[i].y + pour * (this.touchPosition.y - this.shapePoints[i].y);
+            }
+        }
+        this.currentIteration += 1;
+        if (pour >= 1) {
+            this.currentIteration = 0;
+            this.isAnimated = false;
+            this.dirty = false;
+            this.goToNext = false;
+        }
     };
     WaterfallCarousel.prototype.resetMaskPosition = function (newTime) {
         this.isAnimated = true;
@@ -176,6 +207,11 @@ var WaterfallCarousel = (function () {
             if (this.startAnimationTime == 0)
                 this.startAnimationTime = timeStamp;
             this.resetMaskPosition(timeStamp);
+        }
+        if (this.goToNext) {
+            if (this.startAnimationTime == 0)
+                this.startAnimationTime = timeStamp;
+            this.setNextTransition(timeStamp);
         }
         if (this.dirty) {
             this.positioningMask();

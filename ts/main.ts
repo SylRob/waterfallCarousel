@@ -15,6 +15,7 @@ class WaterfallCarousel {
     private startAnimationTime: number = 0;
     private touchPosition: TouchVector;
     private startPosition: BasicVector;
+    private goToNext: boolean;
     private shapePoints: Array<any>;
     private visibleItems: Array<number>;
 
@@ -95,12 +96,25 @@ class WaterfallCarousel {
 
     private positioningMask(): void {
 
-        for( var i = 0; i < this.itemWrapperMasks.length; i++ ) {
+        this.ctx.clearRect( 0, 0, this.canvasElem.width, this.canvasElem.height );
+        for( var i = this.itemWrapperMasks.length -1; i > -1; i-- ) {
             var shape = this.itemWrapperMasks[i];
-            if( !shape.visible ) continue;
-            this.ctx.clearRect( 0, 0, this.canvasElem.width, this.canvasElem.height );
 
-            shape.draw( this.shapePoints );
+            //next image that go under
+            if( this.itemWrapperMasks[i-1] && this.itemWrapperMasks[i-1].visible ) {
+                shape.setMaskSize( this.canvasElem.width, this.canvasElem.height );
+                var points = [
+                    { type: 'line', x: 0, y: 0 },
+                    { type: 'line', x: this.canvasElem.width, y: 0 },
+                    { type: 'line', x: this.canvasElem.width, y: this.canvasElem.height },
+                    { type: 'line', x: 0, y: this.canvasElem.height }
+                ];
+                shape.draw( points );
+            }
+            else if( shape.visible ) {
+                //main image
+                shape.draw( this.shapePoints );
+            }
         }
 
     }
@@ -113,12 +127,13 @@ class WaterfallCarousel {
         var bezierMaxW = Math.round( (this.canvasElem.width * 70) / 100 );
         var bezierMaxH = Math.round( (this.canvasElem.height * 70) / 100 );
 
-
-
         var pour = ( Math.abs(yDiff) / bezierMaxH) * 100;
 
         y = y > bezierMaxH ? bezierMaxH : y;//limit to max height
         pour = pour > 100 ? 100 : pour;//limit to 100%
+
+        if( pour == 100 ) this.goToNext = true;
+
         var bezierW = Math.round( ((pour * bezierMaxW) /100) );
         var bezierFpX = (x - bezierW/2) < 0 ? 0 : (x - bezierW/2);
         var bezierSpX = (bezierFpX + bezierW) > this.canvasElem.width ? this.canvasElem.width : (bezierFpX + bezierW);
@@ -171,7 +186,8 @@ class WaterfallCarousel {
     }
 
     private onTouchMove( event: any ): void {
-        if( this.userAction && !this.isAnimated ){
+        if( this.userAction && !this.isAnimated && !this.goToNext ){
+            console.log( 'mouveeeeeeee', this.goToNext );
             this.dirty = true;
             this.touchPosition = event.detail;
             this.shapePoints = this.getShapePoints( this.startPosition.x, this.startPosition.y , this.touchPosition.x, this.touchPosition.y );
@@ -182,7 +198,31 @@ class WaterfallCarousel {
         this.userAction = false;
         this.dirty = false;
 
-        this.resetMaskPositionNeeded = true;
+        if( !this.goToNext ) this.resetMaskPositionNeeded = true;
+    }
+
+    private setNextTransition( newTime ) {
+        this.isAnimated = true;
+        this.dirty = true;
+
+        var timeDiff = Math.round( newTime - this.startAnimationTime ),
+        totalIteration = (this.animationTimeBase/2000) * 60,//60 FPS base
+        pour = this.currentIteration / totalIteration;
+
+        for( var i = 0; i < this.shapePoints.length; i++ ) {
+            if( this.shapePoints[i].y != this.canvasElem.height ) {
+                this.shapePoints[i].y = this.shapePoints[i].y + pour*(this.touchPosition.y - this.shapePoints[i].y);
+            }
+        }
+
+        this.currentIteration += 1;
+
+        if( pour >= 1 ) {
+            this.currentIteration = 0;
+            this.isAnimated = false;
+            this.dirty = false;
+            this.goToNext = false;
+        }
     }
 
     private resetMaskPosition( newTime ) {
@@ -210,7 +250,6 @@ class WaterfallCarousel {
         }
 
         this.currentIteration += 1;
-
 
         if( pour >= 1 ) {
             this.currentIteration = 0;
@@ -254,6 +293,11 @@ class WaterfallCarousel {
         if( this.resetMaskPositionNeeded ) {
             if( this.startAnimationTime == 0 ) this.startAnimationTime = timeStamp;
             this.resetMaskPosition( timeStamp );
+        }
+
+        if( this.goToNext ) {
+            if( this.startAnimationTime == 0 ) this.startAnimationTime = timeStamp;
+            this.setNextTransition( timeStamp );
         }
 
         if(this.dirty) {
