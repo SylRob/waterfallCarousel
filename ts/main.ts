@@ -1,3 +1,4 @@
+
 class WaterfallCarousel {
 
     private wrapperElem: HTMLElement;
@@ -10,7 +11,7 @@ class WaterfallCarousel {
     private dirty: boolean = true;
     private userAction: boolean;
     private isAnimated:boolean = false;
-    private animationTimeBase: number = 200;
+    private animationTimeBase: number = 2000;
     private resetMaskPositionNeeded: boolean = false;
     private startAnimationTime: number = 0;
     private touchPosition: TouchVector;
@@ -18,6 +19,7 @@ class WaterfallCarousel {
     private goToNext: boolean;
     private shapePoints: Array<any>;
     private visibleItems: Array<number>;
+    private animationSide: string;
 
     private currentIteration: number = 0;
 
@@ -75,7 +77,7 @@ class WaterfallCarousel {
         this.visibleItems = [null, 0, 1];
 
         for( var i = 0; i < this.imagesArr.length; i++ ) {
-            var shape = new MaskPloygone( this.ctx, i, this.imagesArr[i], i == 0 ? true: false );
+            var shape = new MaskPloygone( this.ctx, i, this.imagesArr[i] );
             this.itemWrapperMasks.push( shape );
 
             if( i == 0 ) {
@@ -97,25 +99,34 @@ class WaterfallCarousel {
     private positioningMask(): void {
 
         this.ctx.clearRect( 0, 0, this.canvasElem.width, this.canvasElem.height );
-        for( var i = this.itemWrapperMasks.length -1; i > -1; i-- ) {
-            var shape = this.itemWrapperMasks[i];
+        var shapeId, shape,
+        points =  [
+            { type: 'line', x: 0, y: 0 },
+            { type: 'line', x: this.canvasElem.width, y: 0 },
+            { type: 'line', x: this.canvasElem.width, y: this.canvasElem.height },
+            { type: 'line', x: 0, y: this.canvasElem.height }
+        ],
+        mainShape = this.itemWrapperMasks[this.visibleItems[1]];
 
-            //next image that go under
-            if( this.itemWrapperMasks[i-1] && this.itemWrapperMasks[i-1].visible ) {
-                shape.setMaskSize( this.canvasElem.width, this.canvasElem.height );
-                var points = [
-                    { type: 'line', x: 0, y: 0 },
-                    { type: 'line', x: this.canvasElem.width, y: 0 },
-                    { type: 'line', x: this.canvasElem.width, y: this.canvasElem.height },
-                    { type: 'line', x: 0, y: this.canvasElem.height }
-                ];
-                shape.draw( points );
-            }
-            else if( shape.visible ) {
-                //main image
-                shape.draw( this.shapePoints );
-            }
+        //upward drowing ? lets draw that first
+        if( this.animationSide != null && this.visibleItems[2] != null && this.animationSide == 'upward' && this.visibleItems[2] != null) {
+            shapeId = this.visibleItems[2];
+            shape = this.itemWrapperMasks[shapeId];
+            shape.setMaskSize( this.canvasElem.width, this.canvasElem.height );
+            shape.draw( points );
+
         }
+
+        //downward drowing ? lets draw that first
+        if( this.animationSide != null && this.visibleItems[0] != null && this.animationSide == 'downward' && this.visibleItems[0] != null ) {
+            // the actual main pic must be render first
+            mainShape.draw( points );
+
+            shapeId = this.visibleItems[0];
+            shape = this.itemWrapperMasks[shapeId];
+            shape.setMaskSize( this.canvasElem.width, this.canvasElem.height );
+            shape.draw( this.shapePoints );
+        } else  mainShape.draw( this.shapePoints );
 
     }
 
@@ -124,15 +135,16 @@ class WaterfallCarousel {
         var xDiff = xStart - x;
         var yDiff = yStart - y;
 
-        var bezierMaxW = Math.round( (this.canvasElem.width * 70) / 100 );
-        var bezierMaxH = Math.round( (this.canvasElem.height * 70) / 100 );
+        var bezierMaxW = Math.round( (this.canvasElem.width * 40) / 100 );
+        var bezierMaxH = Math.round( (this.canvasElem.height * 40) / 100 );
 
         var pour = ( Math.abs(yDiff) / bezierMaxH) * 100;
 
         y = y > bezierMaxH ? bezierMaxH : y;//limit to max height
         pour = pour > 100 ? 100 : pour;//limit to 100%
 
-        if( pour == 100 ) this.goToNext = true;
+        if( pour == 100 && ( ( this.animationSide == 'upward' && this.visibleItems[2] != null ) || ( this.animationSide == 'downward' && this.visibleItems[0] != null ) ) ) this.goToNext = true;
+        else this.goToNext = false;
 
         var bezierW = Math.round( ((pour * bezierMaxW) /100) );
         var bezierFpX = (x - bezierW/2) < 0 ? 0 : (x - bezierW/2);
@@ -151,13 +163,23 @@ class WaterfallCarousel {
                 { type: 'line', x: 0, y: this.canvasElem.height }
             ];
 
-        } else {
+        } else if( this.visibleItems[0] == null ) {
             //top to bottom
             points = [
                 { type: 'line', x: 0, y: 0 },
                 { type: 'line', x: this.canvasElem.width, y: 0 },
                 { type: 'line', x: this.canvasElem.width, y: this.canvasElem.height },
                 { type: 'bezier', x: bezierSpX, y: this.canvasElem.height, cp1x: x , cp1y: (this.canvasElem.height - bezierY), cp2x: x, cp2y: (this.canvasElem.height - bezierY), x2: bezierFpX, y2: this.canvasElem.height },
+                { type: 'line', x: 0, y: this.canvasElem.height }
+            ];
+
+        } else {
+
+            points = [
+                { type: 'line', x: 0, y: this.canvasElem.height },
+                { type: 'bezier', x: bezierSpX, y: this.canvasElem.height, cp1x: x , cp1y: (this.canvasElem.height - bezierY), cp2x: x, cp2y: (this.canvasElem.height - bezierY), x2: bezierFpX, y2: this.canvasElem.height },
+                { type: 'line', x: this.canvasElem.width, y: this.canvasElem.height },
+                { type: 'line', x: this.canvasElem.width, y: this.canvasElem.height },
                 { type: 'line', x: 0, y: this.canvasElem.height }
             ];
 
@@ -186,12 +208,16 @@ class WaterfallCarousel {
     }
 
     private onTouchMove( event: any ): void {
-        if( this.userAction && !this.isAnimated && !this.goToNext ){
-            console.log( 'mouveeeeeeee', this.goToNext );
+        if( this.userAction && !this.isAnimated ){
             this.dirty = true;
             this.touchPosition = event.detail;
             this.shapePoints = this.getShapePoints( this.startPosition.x, this.startPosition.y , this.touchPosition.x, this.touchPosition.y );
+
+            if( this.startPosition.y > this.touchPosition.y ) this.animationSide = 'downward';
+            else this.animationSide = 'upward';
         }
+
+
     }
 
     private onTouchEnd( event: MouseEvent ): void {
@@ -206,12 +232,28 @@ class WaterfallCarousel {
         this.dirty = true;
 
         var timeDiff = Math.round( newTime - this.startAnimationTime ),
-        totalIteration = (this.animationTimeBase/2000) * 60,//60 FPS base
+        totalIteration = ((this.animationTimeBase*2)/1000) * 60,//60 FPS base
         pour = this.currentIteration / totalIteration;
 
         for( var i = 0; i < this.shapePoints.length; i++ ) {
-            if( this.shapePoints[i].y != this.canvasElem.height ) {
-                this.shapePoints[i].y = this.shapePoints[i].y + pour*(this.touchPosition.y - this.shapePoints[i].y);
+            if( this.animationSide == "upward" && this.shapePoints[i].y != this.canvasElem.height ) {
+
+                this.shapePoints[i].y = this.shapePoints[i].y + pour*(this.canvasElem.height - this.shapePoints[i].y);
+                //this.shapePoints[i].y = pour*(this.canvasElem.height - (this.shapePoints[i].y == 0 ? 0 : (this.shapePoints[i].y/pour)));
+
+                if( this.shapePoints[i].type == "bezier" ) {
+                    this.shapePoints[i].y2 = this.shapePoints[i].y;
+                    if( this.shapePoints[i].cp1y < this.shapePoints[i].y ) this.shapePoints[i].cp1y = this.shapePoints[i].cp2y = this.shapePoints[i].y;
+                }
+            } else if( this.animationSide == "downward" && this.shapePoints[i].y != 0 ) {
+                if( i == 3 || i == 4 ) continue;
+                this.shapePoints[i].y = this.shapePoints[i].y - pour*(this.shapePoints[i].y);
+
+                if( this.shapePoints[i].type == "bezier" ) {
+                    this.shapePoints[i].y2 = this.shapePoints[i].y;
+                    if( this.shapePoints[i].cp1y > this.shapePoints[i].y ) this.shapePoints[i].cp1y = this.shapePoints[i].cp2y = this.shapePoints[i].y;
+
+                }
             }
         }
 
@@ -222,7 +264,28 @@ class WaterfallCarousel {
             this.isAnimated = false;
             this.dirty = false;
             this.goToNext = false;
+            this.transitionCallBack();
         }
+    }
+
+    private transitionCallBack() {
+
+        if( this.animationSide == 'upward' ) {
+
+            this.visibleItems = [
+                this.visibleItems[0] != null ? this.visibleItems[0] + 1 : 0,
+                this.visibleItems[1] + 1,
+                this.visibleItems[2] + 1 > this.imagesArr.length ? null : this.visibleItems[2] + 1,
+            ];
+
+        } else {
+            this.visibleItems = [
+                this.visibleItems[0] != 0 ? this.visibleItems[0] - 1 : null,
+                this.visibleItems[1] - 1,
+                this.visibleItems[2] != null ? this.visibleItems[2] - 1 : this.imagesArr.length
+            ];
+        }
+        this.animationSide = null;
     }
 
     private resetMaskPosition( newTime ) {
@@ -234,7 +297,7 @@ class WaterfallCarousel {
         var timeDiff = Math.round( newTime - this.startAnimationTime ),
         totalIteration = (this.animationTimeBase/1000) * 60,//60 FPS base
         pour = this.currentIteration / totalIteration,
-        bezierMaxH = Math.round( (this.canvasElem.height * 70) / 100 ),
+        bezierMaxH = Math.round( (this.canvasElem.height * 20) / 100 ),
         distY = Math.abs(this.touchPosition.y - this.startPosition.y) > bezierMaxH ? bezierMaxH : Math.abs(this.touchPosition.y - this.startPosition.y);
 
         for( var i = 0; i < this.shapePoints.length; i++ ) {
@@ -256,6 +319,7 @@ class WaterfallCarousel {
             this.isAnimated = false;
             this.dirty = false;
             this.resetMaskPositionNeeded = false;
+            this.animationSide = null;
         }
 
     }
@@ -273,18 +337,19 @@ class WaterfallCarousel {
     }
 
     private resizeActiveMask() {
-        for( var i = 0; i < this.itemWrapperMasks.length; i++ ) {
-            var shape = this.itemWrapperMasks[i];
-            if( !shape.visible ) continue;
-                shape.setMaskSize( this.canvasElem.width, this.canvasElem.height );
 
-                var points = [
-                    { type: 'line', x: 0, y: 0 },
-                    { type: 'line', x: this.windowW, y: 0 },
-                    { type: 'line', x: this.windowW, y: this.windowH },
-                    { type: 'line', x: 0, y: this.windowH }
-                ];
-                shape.draw( points );
+        for( var i = 0; i < this.itemWrapperMasks.length; i++ ) {
+            if( this.visibleItems.indexOf(i) < 0 ) continue;
+            var shape = this.itemWrapperMasks[i];
+            shape.setMaskSize( this.canvasElem.width, this.canvasElem.height );
+
+            var points = [
+                { type: 'line', x: 0, y: 0 },
+                { type: 'line', x: this.windowW, y: 0 },
+                { type: 'line', x: this.windowW, y: this.windowH },
+                { type: 'line', x: 0, y: this.windowH }
+            ];
+            shape.draw( points );
         }
     }
 
@@ -295,7 +360,7 @@ class WaterfallCarousel {
             this.resetMaskPosition( timeStamp );
         }
 
-        if( this.goToNext ) {
+        if( this.goToNext && !this.userAction ) {
             if( this.startAnimationTime == 0 ) this.startAnimationTime = timeStamp;
             this.setNextTransition( timeStamp );
         }
@@ -314,6 +379,27 @@ class WaterfallCarousel {
 
 }
 
+
+/**
+*   Custom event hack for IE 10
+*
+*/
+interface Window {
+    CustomEvent: CustomEvent;
+}
+
+(function () {
+  function CustomEvent ( event, params ) {
+    params = params || { bubbles: false, cancelable: false, detail: undefined };
+    var evt:CustomEvent = <any>document.createEvent( 'CustomEvent' );
+    evt.initCustomEvent( event, params.bubbles, params.cancelable, params.detail );
+    return evt;
+   };
+
+  CustomEvent.prototype = Event.prototype;
+
+  window.CustomEvent = <any>CustomEvent;
+})();
 
 /**
 *   preloader

@@ -1,10 +1,9 @@
 var MaskPloygone = (function () {
-    function MaskPloygone(ctx, id, imgPath, visible) {
+    function MaskPloygone(ctx, id, imgPath) {
         this.img = new Image();
         this.ctx = ctx;
         this.id = id;
         this.img.src = imgPath;
-        this.visible = visible;
     }
     MaskPloygone.prototype.setMaskSize = function (w, h) {
         this.w = w;

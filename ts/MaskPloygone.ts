@@ -6,13 +6,11 @@ class MaskPloygone {
     private w: number;
     private h: number;
     public shapePoints: Array<any>;
-    visible: boolean;
 
-    constructor( ctx:CanvasRenderingContext2D, id:number, imgPath: string, visible: boolean ) {
+    constructor( ctx:CanvasRenderingContext2D, id:number, imgPath: string ) {
         this.ctx = ctx;
         this.id = id;
         this.img.src = imgPath;
-        this.visible = visible;
     }
 
     setMaskSize( w: number, h: number ) {

@@ -32,7 +32,7 @@
         "rewriteTsconfig": true
     },
     "files": [
-        "lib/es6-promise.d.ts",
+        "lib/lib.es6.d.ts",
         "main.ts",
         "MaskPloygone.ts",
         "TouchVector.ts"
