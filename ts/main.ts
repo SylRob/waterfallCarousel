@@ -11,11 +11,12 @@ class WaterfallCarousel {
     private dirty: boolean = true;
     private userAction: boolean;
     private isAnimated:boolean = false;
-    private animationTimeBase: number = 2000;
+    private animationTimeBase: number = 500;
     private resetMaskPositionNeeded: boolean = false;
     private startAnimationTime: number = 0;
-    private touchPosition: TouchVector;
+    private touchPosition: BasicVector;
     private startPosition: BasicVector;
+    private startElemPosition: Array<any>;
     private goToNext: boolean;
     private shapePoints: Array<any>;
     private visibleItems: Array<number>;
@@ -108,20 +109,20 @@ class WaterfallCarousel {
         ],
         mainShape = this.itemWrapperMasks[this.visibleItems[1]];
 
+        var maskH = Math.abs( this.shapePoints[0].y - this.shapePoints[3].y );
         //upward drowing ? lets draw that first
         if( this.animationSide != null && this.visibleItems[2] != null && this.animationSide == 'upward' && this.visibleItems[2] != null) {
+            if( typeof this.itemWrapperMasks[this.visibleItems[2]] == 'undefined' ) console.log( this.itemWrapperMasks, this.visibleItems[2] );
             shapeId = this.visibleItems[2];
             shape = this.itemWrapperMasks[shapeId];
             shape.setMaskSize( this.canvasElem.width, this.canvasElem.height );
             shape.draw( points );
-
         }
 
         //downward drowing ? lets draw that first
         if( this.animationSide != null && this.visibleItems[0] != null && this.animationSide == 'downward' && this.visibleItems[0] != null ) {
             // the actual main pic must be render first
             mainShape.draw( points );
-
             shapeId = this.visibleItems[0];
             shape = this.itemWrapperMasks[shapeId];
             shape.setMaskSize( this.canvasElem.width, this.canvasElem.height );
@@ -153,8 +154,8 @@ class WaterfallCarousel {
 
 
         var points = [];
-        //bottom to top
-        if( yDiff < 0 ) {
+
+        if( this.animationSide == 'upward' ) {
             points = [
                 { type: 'line', x: 0, y: 0 },
                 { type: 'bezier', x: bezierFpX, y: 0, cp1x: x, cp1y: bezierY, cp2x: x, cp2y: bezierY, x2: bezierSpX, y2: 0 },
@@ -164,7 +165,7 @@ class WaterfallCarousel {
             ];
 
         } else if( this.visibleItems[0] == null ) {
-            //top to bottom
+
             points = [
                 { type: 'line', x: 0, y: 0 },
                 { type: 'line', x: this.canvasElem.width, y: 0 },
@@ -191,63 +192,81 @@ class WaterfallCarousel {
     private onTouchStart( event: any ): void {
         if( !this.isAnimated ) {
             this.userAction = true;
-
+            var x, y;
             if( typeof event.clientX !== 'undefined' ) {
-    			var x = event.clientX;
-    			var y = event.clientY;
+    			x = event.clientX;
+    			y = event.clientY;
     		} else if ( typeof event.touches !== 'undefined' ) {
-    			var x = event.touches[0].clientX;
-    			var y = event.touches[0].clientY;
+    			x = event.touches[0].clientX;
+    			y = event.touches[0].clientY;
     		}
 
             this.startPosition = new BasicVector({
                 x: x,
                 y: y
             });
+            this.touchPosition = new BasicVector({
+                x: x,
+                y: y
+            });
         }
     }
 
-    private onTouchMove( event: any ): void {
+    private onTouchMove( event: any ) {
         if( this.userAction && !this.isAnimated ){
             this.dirty = true;
-            this.touchPosition = event.detail;
+            this.touchPosition = new BasicVector(event.detail);
+
             this.shapePoints = this.getShapePoints( this.startPosition.x, this.startPosition.y , this.touchPosition.x, this.touchPosition.y );
 
             if( this.startPosition.y > this.touchPosition.y ) this.animationSide = 'downward';
             else this.animationSide = 'upward';
         }
 
-
     }
 
-    private onTouchEnd( event: MouseEvent ): void {
+    private onTouchEnd( event: MouseEvent ) {
         this.userAction = false;
         this.dirty = false;
-
+        if( Math.abs( this.startPosition.x - this.touchPosition.x ) < 1 || Math.abs( this.startPosition.y - this.touchPosition.y ) < 1 ) return false;
         if( !this.goToNext ) this.resetMaskPositionNeeded = true;
     }
 
-    private setNextTransition( newTime ) {
+    private setNextTransition() {
         this.isAnimated = true;
         this.dirty = true;
 
-        var timeDiff = Math.round( newTime - this.startAnimationTime ),
-        totalIteration = ((this.animationTimeBase*2)/1000) * 60,//60 FPS base
+        var totalIteration = (this.animationTimeBase/1000) * 60,//60 FPS base
         pour = this.currentIteration / totalIteration;
+
+        if( this.currentIteration == 0 ) this.startElemPosition = JSON.parse(JSON.stringify(this.shapePoints));
 
         for( var i = 0; i < this.shapePoints.length; i++ ) {
             if( this.animationSide == "upward" && this.shapePoints[i].y != this.canvasElem.height ) {
 
-                this.shapePoints[i].y = this.shapePoints[i].y + pour*(this.canvasElem.height - this.shapePoints[i].y);
-                //this.shapePoints[i].y = pour*(this.canvasElem.height - (this.shapePoints[i].y == 0 ? 0 : (this.shapePoints[i].y/pour)));
+                this.shapePoints[i].y = this.easeOutCubic(
+                    this.currentIteration,
+                    this.startElemPosition[i].y,
+                    this.canvasElem.height - this.startElemPosition[i].y,
+                    totalIteration
+                );
+                //this.startElemPosition[i].y + pour*(this.canvasElem.height - this.startElemPosition[i].y);
 
                 if( this.shapePoints[i].type == "bezier" ) {
                     this.shapePoints[i].y2 = this.shapePoints[i].y;
                     if( this.shapePoints[i].cp1y < this.shapePoints[i].y ) this.shapePoints[i].cp1y = this.shapePoints[i].cp2y = this.shapePoints[i].y;
                 }
+
             } else if( this.animationSide == "downward" && this.shapePoints[i].y != 0 ) {
                 if( i == 3 || i == 4 ) continue;
-                this.shapePoints[i].y = this.shapePoints[i].y - pour*(this.shapePoints[i].y);
+
+                this.shapePoints[i].y = this.easeOutCubic(
+                    this.currentIteration,
+                    this.startElemPosition[i].y,
+                    this.startElemPosition[i].y*-1,
+                    totalIteration
+                );
+                //this.startElemPosition[i].y - pour*(this.startElemPosition[i].y);
 
                 if( this.shapePoints[i].type == "bezier" ) {
                     this.shapePoints[i].y2 = this.shapePoints[i].y;
@@ -256,6 +275,7 @@ class WaterfallCarousel {
                 }
             }
         }
+
 
         this.currentIteration += 1;
 
@@ -275,41 +295,101 @@ class WaterfallCarousel {
             this.visibleItems = [
                 this.visibleItems[0] != null ? this.visibleItems[0] + 1 : 0,
                 this.visibleItems[1] + 1,
-                this.visibleItems[2] + 1 > this.imagesArr.length ? null : this.visibleItems[2] + 1,
+                this.visibleItems[2] + 1 == this.imagesArr.length ? null : this.visibleItems[2] + 1,
             ];
 
         } else {
             this.visibleItems = [
                 this.visibleItems[0] != 0 ? this.visibleItems[0] - 1 : null,
                 this.visibleItems[1] - 1,
-                this.visibleItems[2] != null ? this.visibleItems[2] - 1 : this.imagesArr.length
+                this.visibleItems[2] != null ? this.visibleItems[2] - 1 : this.imagesArr.length - 1
             ];
         }
         this.animationSide = null;
     }
 
-    private resetMaskPosition( newTime ) {
+    private resetMaskPosition() {
 
         this.isAnimated = true;
         this.dirty = true;
 
-        //var dist =
-        var timeDiff = Math.round( newTime - this.startAnimationTime ),
-        totalIteration = (this.animationTimeBase/1000) * 60,//60 FPS base
-        pour = this.currentIteration / totalIteration,
-        bezierMaxH = Math.round( (this.canvasElem.height * 20) / 100 ),
-        distY = Math.abs(this.touchPosition.y - this.startPosition.y) > bezierMaxH ? bezierMaxH : Math.abs(this.touchPosition.y - this.startPosition.y);
+        if( this.currentIteration == 0 ) this.startElemPosition = JSON.parse(JSON.stringify(this.shapePoints));
+
+        var bezierMaxH = Math.round( (this.canvasElem.height * 20) / 100 ),
+        distY = Math.abs(this.touchPosition.y - this.startPosition.y) > bezierMaxH ? bezierMaxH : Math.abs(this.touchPosition.y - this.startPosition.y),
+        durationPour = distY / bezierMaxH,
+        totalIteration = ( ( (this.animationTimeBase*0.6)/1000 ) * 60)*durationPour,//60 FPS base
+        pour = this.currentIteration / totalIteration;
 
         for( var i = 0; i < this.shapePoints.length; i++ ) {
             //lets find the bezier curve and update it
 
-            if( this.shapePoints[i].type == 'bezier' ) {
+            if( this.animationSide == "upward" ) {
+                if( this.shapePoints[i].type == 'bezier' ) {
 
-                this.shapePoints[i].x = this.shapePoints[i].x + pour*(this.touchPosition.x - this.shapePoints[i].x);
-                this.shapePoints[i].x2 = this.shapePoints[i].x2 - pour*(this.shapePoints[i].x2 - this.touchPosition.x);
-                this.shapePoints[i].cp1y = this.shapePoints[i].y == this.canvasElem.height ? (pour*distY) + this.shapePoints[i].cp1y : this.shapePoints[i].cp1y - pour*distY;
-                this.shapePoints[i].cp2y = this.shapePoints[i].y == this.canvasElem.height ? pour*distY + this.shapePoints[i].cp2y : this.shapePoints[i].cp2y - pour*distY;
+                    this.shapePoints[i].x = this.easeOutCubic(
+                        this.currentIteration,
+                        this.startElemPosition[i].x,
+                        this.touchPosition.x - this.startElemPosition[i].x,
+                        totalIteration
+                    );
+                    //this.startElemPosition[i].x + pour*(this.touchPosition.x - this.startElemPosition[i].x);
+                    this.shapePoints[i].x2 = this.easeOutCubic(
+                        this.currentIteration,
+                        this.startElemPosition[i].x2,
+                        this.touchPosition.x - this.startElemPosition[i].x2,
+                        totalIteration
+                    );
+                    //this.startElemPosition[i].x2 - pour*(this.startElemPosition[i].x2 - this.touchPosition.x);
+                    this.shapePoints[i].cp1y = this.easeOutCubic(
+                        this.currentIteration,
+                        this.startElemPosition[i].cp1y,
+                        this.startElemPosition[i].cp1y*-1,
+                        totalIteration
+                    );
+                    //this.startElemPosition[i].cp1y - pour*distY;
+                    this.shapePoints[i].cp2y = this.easeOutCubic(
+                        this.currentIteration,
+                        this.startElemPosition[i].cp2y,
+                        this.startElemPosition[i].cp2y*-1,
+                        totalIteration
+                    );
+                    //this.startElemPosition[i].cp2y - pour*distY;
+                }
+            } else if( this.animationSide == "downward" ) {
+                if( this.shapePoints[i].type == 'bezier' ) {
+
+                    this.shapePoints[i].x = this.easeOutCubic(
+                        this.currentIteration,
+                        this.startElemPosition[i].x,
+                        this.touchPosition.x - this.startElemPosition[i].x,
+                        totalIteration
+                    );
+                    //this.startElemPosition[i].x + pour*(this.touchPosition.x - this.startElemPosition[i].x);
+                    this.shapePoints[i].x2 = this.easeOutCubic(
+                        this.currentIteration,
+                        this.startElemPosition[i].x2,
+                        this.touchPosition.x - this.startElemPosition[i].x2,
+                        totalIteration
+                    );
+                    //this.startElemPosition[i].x2 - pour*(this.startElemPosition[i].x2 - this.touchPosition.x);
+                    this.shapePoints[i].cp1y = this.easeOutCubic(
+                        this.currentIteration,
+                        this.startElemPosition[i].cp1y,
+                        this.canvasElem.height - this.startElemPosition[i].cp1y,
+                        totalIteration
+                    );
+                    //this.startElemPosition[i].y == this.canvasElem.height ? (pour*distY) + this.startElemPosition[i].cp1y : this.shapePoints[i].cp1y - pour*distY;
+                    this.shapePoints[i].cp2y = this.easeOutCubic(
+                        this.currentIteration,
+                        this.startElemPosition[i].cp2y,
+                        this.canvasElem.height - this.startElemPosition[i].cp2y,
+                        totalIteration
+                    );
+                    //this.startElemPosition[i].y == this.canvasElem.height ? pour*distY + this.startElemPosition[i].cp2y : this.shapePoints[i].cp2y - pour*distY;
+                }
             }
+
         }
 
         this.currentIteration += 1;
@@ -357,12 +437,12 @@ class WaterfallCarousel {
 
         if( this.resetMaskPositionNeeded ) {
             if( this.startAnimationTime == 0 ) this.startAnimationTime = timeStamp;
-            this.resetMaskPosition( timeStamp );
+            this.resetMaskPosition();
         }
 
         if( this.goToNext && !this.userAction ) {
             if( this.startAnimationTime == 0 ) this.startAnimationTime = timeStamp;
-            this.setNextTransition( timeStamp );
+            this.setNextTransition();
         }
 
         if(this.dirty) {
